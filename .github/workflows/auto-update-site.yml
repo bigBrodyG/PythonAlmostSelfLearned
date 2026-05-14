@@ -1,0 +1,57 @@
+name: Auto-Update Python Showcase
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Create docs dir
+        run: mkdir -p docs
+
+      - name: Run Python scripts and capture output
+        run: |
+          find . -path './.github' -prune -o -path './docs' -prune -o -path './.venv' -prune -o -path './Year3/.venv' -prune -o -path './Year4/.venv' -prune -o -name "*.py" ! -name "_*" -print | while read script; do
+            slug=$(echo "$script" | sed 's|^\./||' | sed 's|/|-|g' | sed 's|\.py$||' | tr '[:upper:]' '[:lower:]' | sed 's|[^a-z0-9]|-|g' | sed 's|-\+|-|g' | sed 's|^-||;s|-$||')
+            echo "Running $script -> docs/${slug}-output.txt"
+            timeout 10 python3 "$script" > "docs/${slug}-output.txt" 2>&1 || true
+            [ -s "docs/${slug}-output.txt" ] || rm -f "docs/${slug}-output.txt"
+          done
+
+      - name: Generate site
+        run: python3 .github/scripts/generate-site.py
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
