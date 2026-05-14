@@ -29,12 +29,12 @@ jobs:
 
       - name: Run Python scripts and capture output
         run: |
-          find . -path './.github' -prune -o -path './docs' -prune -o -path './.venv' -prune -o -path './Year3/.venv' -prune -o -path './Year4/.venv' -prune -o -name "*.py" ! -name "_*" -print | while read script; do
+          while IFS= read -r script; do
             slug=$(echo "$script" | sed 's|^\./||' | sed 's|/|-|g' | sed 's|\.py$||' | tr '[:upper:]' '[:lower:]' | sed 's|[^a-z0-9]|-|g' | sed 's|-\+|-|g' | sed 's|^-||;s|-$||')
             echo "Running $script -> docs/${slug}-output.txt"
-            timeout 10 python3 "$script" > "docs/${slug}-output.txt" 2>&1 || true
+            timeout 10 python3 "$script" </dev/null > "docs/${slug}-output.txt" 2>&1 || true
             [ -s "docs/${slug}-output.txt" ] || rm -f "docs/${slug}-output.txt"
-          done
+          done < <(find . -path './.github' -prune -o -path './docs' -prune -o -path '*/.venv' -prune -o -name "*.py" ! -name "_*" -print)
 
       - name: Generate site
         run: python3 .github/scripts/generate-site.py
